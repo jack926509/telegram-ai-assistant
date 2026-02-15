@@ -1,11 +1,13 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from datetime import datetime
+from datetime import datetime, timedelta
+import logging
 from database.operations import DatabaseOperations
 from utils.openai_helper import OpenAIHelper
 
 db_ops = DatabaseOperations()
 ai_helper = OpenAIHelper()
+logger = logging.getLogger(__name__)
 
 async def expense_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """記帳主處理器"""
@@ -76,7 +78,10 @@ async def handle_record_expense(update, context, user_id, intent_data):
         await update.message.reply_text(response)
     
     except Exception as e:
-        await update.message.reply_text(f"記錄時發生錯誤: {str(e)}")
+        logger.exception("record expense failed: user_id=%s", user_id)
+        await update.message.reply_text(
+            "記錄失敗，可能是資料庫欄位尚未升級。請稍後再試，或通知管理員執行資料庫 migration。"
+        )
 
 async def handle_query_expenses(update, context, user_id, intent_data):
     """處理查詢支出"""
@@ -124,8 +129,9 @@ async def handle_query_expenses(update, context, user_id, intent_data):
         
         await update.message.reply_text(response)
     
-    except Exception as e:
-        await update.message.reply_text(f"查詢時發生錯誤: {str(e)}")
+    except Exception:
+        logger.exception("query expense failed: user_id=%s", user_id)
+        await update.message.reply_text("查詢時發生錯誤，請稍後再試。")
 
 async def set_budget_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """設定月度預算"""
@@ -151,7 +157,6 @@ async def set_budget_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     except ValueError:
         await update.message.reply_text("請輸入有效的數字金額")
-    except Exception as e:
-        await update.message.reply_text(f"設定預算時發生錯誤: {str(e)}")
-
-from datetime import timedelta
+    except Exception:
+        logger.exception("set budget failed: user_id=%s", user_id)
+        await update.message.reply_text("設定預算時發生錯誤，請稍後再試。")

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, create_engine, text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, Integer, String, create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 import config
@@ -15,7 +15,7 @@ class CalendarEvent(Base):
     __tablename__ = "calendar_events"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
     title = Column(String(200), nullable=False)
     description = Column(String(500))
     start_time = Column(DateTime, nullable=False)
@@ -35,7 +35,7 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
     amount = Column(Float, nullable=False)
     category = Column(String(50))
     description = Column(String(200))
@@ -53,7 +53,7 @@ class UserPreference(Base):
     __tablename__ = "user_preferences"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, unique=True, nullable=False)
+    user_id = Column(BigInteger, unique=True, nullable=False)
     default_currency = Column(String(10), default="TWD")
     reminder_enabled = Column(Boolean, default=True)
     daily_reminder_time = Column(String(5), default="20:00")

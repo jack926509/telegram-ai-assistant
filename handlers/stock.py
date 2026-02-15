@@ -41,11 +41,38 @@ def get_stock_info(symbol):
     """取得股票資訊"""
     try:
         stock = yf.Ticker(symbol)
-        info = stock.info
+        try:
+            info = stock.info or {}
+        except Exception:
+            info = {}
+
+        try:
+            fast_info = dict(stock.fast_info or {})
+        except Exception:
+            fast_info = {}
         
         # 取得即時報價
-        current_price = info.get('currentPrice') or info.get('regularMarketPrice')
-        previous_close = info.get('previousClose') or info.get('regularMarketPreviousClose')
+        current_price = (
+            info.get('currentPrice')
+            or info.get('regularMarketPrice')
+            or fast_info.get('lastPrice')
+            or fast_info.get('regularMarketPrice')
+        )
+        previous_close = (
+            info.get('previousClose')
+            or info.get('regularMarketPreviousClose')
+            or fast_info.get('previousClose')
+        )
+
+        if not current_price:
+            # yfinance info API 偶爾失敗，改用歷史價格做 fallback
+            hist = stock.history(period='5d')
+            if not hist.empty:
+                closes = hist['Close'].dropna()
+                if len(closes) >= 1:
+                    current_price = float(closes.iloc[-1])
+                if len(closes) >= 2:
+                    previous_close = float(closes.iloc[-2])
         
         if not current_price:
             return None
@@ -67,7 +94,7 @@ def get_stock_info(symbol):
         
         # 基本資訊
         name = info.get('longName') or info.get('shortName') or symbol
-        currency = info.get('currency', 'TWD')
+        currency = info.get('currency') or fast_info.get('currency') or 'USD'
         
         result = (
             f"📊 *{name}* ({symbol})\n\n"
@@ -86,8 +113,9 @@ def get_stock_info(symbol):
                 cap_str = f"{market_cap/1_000_000:.2f}M"
             result += f"🏢 市值: {cap_str} {currency}\n"
         
-        if info.get('volume'):
-            volume = info['volume']
+        volume_value = info.get('volume') or fast_info.get('lastVolume')
+        if volume_value:
+            volume = volume_value
             if volume > 1_000_000:
                 vol_str = f"{volume/1_000_000:.2f}M"
             elif volume > 1_000:
@@ -96,11 +124,15 @@ def get_stock_info(symbol):
                 vol_str = f"{volume}"
             result += f"📊 成交量: {vol_str}\n"
         
-        if info.get('dayLow') and info.get('dayHigh'):
-            result += f"📏 今日區間: {info['dayLow']:.2f} - {info['dayHigh']:.2f}\n"
+        day_low = info.get('dayLow') or fast_info.get('dayLow')
+        day_high = info.get('dayHigh') or fast_info.get('dayHigh')
+        if day_low and day_high:
+            result += f"📏 今日區間: {day_low:.2f} - {day_high:.2f}\n"
         
-        if info.get('fiftyTwoWeekLow') and info.get('fiftyTwoWeekHigh'):
-            result += f"📅 52週區間: {info['fiftyTwoWeekLow']:.2f} - {info['fiftyTwoWeekHigh']:.2f}\n"
+        year_low = info.get('fiftyTwoWeekLow') or fast_info.get('yearLow')
+        year_high = info.get('fiftyTwoWeekHigh') or fast_info.get('yearHigh')
+        if year_low and year_high:
+            result += f"📅 52週區間: {year_low:.2f} - {year_high:.2f}\n"
         
         # PE 比率
         if info.get('trailingPE'):

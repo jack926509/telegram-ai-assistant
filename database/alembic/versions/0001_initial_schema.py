@@ -19,7 +19,7 @@ def upgrade():
     op.create_table(
         "calendar_events",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.BigInteger(), nullable=False),
         sa.Column("title", sa.String(length=200), nullable=False),
         sa.Column("description", sa.String(length=500), nullable=True),
         sa.Column("start_time", sa.DateTime(), nullable=False),
@@ -35,7 +35,7 @@ def upgrade():
     op.create_table(
         "expenses",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.BigInteger(), nullable=False),
         sa.Column("amount", sa.Float(), nullable=False),
         sa.Column("category", sa.String(length=50), nullable=True),
         sa.Column("description", sa.String(length=200), nullable=True),
@@ -49,7 +49,7 @@ def upgrade():
     op.create_table(
         "user_preferences",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.BigInteger(), nullable=False),
         sa.Column("default_currency", sa.String(length=10), nullable=True),
         sa.Column("reminder_enabled", sa.Boolean(), nullable=True),
         sa.Column("daily_reminder_time", sa.String(length=5), nullable=True),
