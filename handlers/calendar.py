@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from datetime import datetime, timedelta
+import logging
 from dateutil import parser
 import pytz
 from database.operations import DatabaseOperations
@@ -8,6 +9,7 @@ from utils.openai_helper import OpenAIHelper
 
 db_ops = DatabaseOperations()
 ai_helper = OpenAIHelper()
+logger = logging.getLogger(__name__)
 
 async def calendar_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """行事曆主處理器"""
@@ -91,8 +93,11 @@ async def handle_create_event(update, context, user_id, intent_data):
         
         await update.message.reply_text(response)
     
-    except Exception as e:
-        await update.message.reply_text(f"建立行程時發生錯誤: {str(e)}")
+    except Exception:
+        logger.exception("create event failed: user_id=%s", user_id)
+        await update.message.reply_text(
+            "建立行程失敗，可能是資料庫欄位尚未升級。請稍後再試，或通知管理員執行資料庫 migration。"
+        )
 
 async def handle_query_events(update, context, user_id, intent_data):
     """處理查詢行程"""
@@ -141,8 +146,9 @@ async def handle_query_events(update, context, user_id, intent_data):
         
         await update.message.reply_text(response)
     
-    except Exception as e:
-        await update.message.reply_text(f"查詢行程時發生錯誤: {str(e)}")
+    except Exception:
+        logger.exception("query event failed: user_id=%s", user_id)
+        await update.message.reply_text("查詢行程時發生錯誤，請稍後再試。")
 
 async def handle_delete_event(update, context, user_id, intent_data):
     """處理刪除行程"""
@@ -178,8 +184,9 @@ async def handle_delete_event(update, context, user_id, intent_data):
                 f"✅ 已刪除行程: {matching_event.title}"
             )
     
-    except Exception as e:
-        await update.message.reply_text(f"刪除行程時發生錯誤: {str(e)}")
+    except Exception:
+        logger.exception("delete event failed: user_id=%s", user_id)
+        await update.message.reply_text("刪除行程時發生錯誤，請稍後再試。")
 
 async def handle_update_event(update, context, user_id, intent_data):
     """處理修改行程"""
