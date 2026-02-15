@@ -116,9 +116,10 @@ class OpenAIHelper:
     @staticmethod
     def general_chat(user_message, conversation_history=None):
         """一般對話"""
-        system_prompt = """你是一個友善且樂於助人的 AI 助理。
-你可以幫助使用者管理行事曆、記帳、查詢資訊等。
-請用繁體中文回答,語氣親切自然。"""
+        system_prompt = (
+            f"{config.ASSISTANT_PERSONA_PROMPT}\n"
+            "你可以幫助使用者管理行事曆、記帳、查詢資訊等。"
+        )
         
         messages = [{"role": "system", "content": system_prompt}]
         

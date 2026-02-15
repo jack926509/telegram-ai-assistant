@@ -1,10 +1,70 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-import requests
 from bs4 import BeautifulSoup
+import ipaddress
+import socket
+import asyncio
+from urllib.parse import urlparse
+import aiohttp
 from utils.openai_helper import OpenAIHelper
+from utils.retry import retry_async, is_retryable_http_error, run_in_thread_with_retry
 
 ai_helper = OpenAIHelper()
+
+BLOCKED_HOSTS = {'localhost', 'localhost.localdomain'}
+
+
+async def is_safe_url(url):
+    """檢查 URL 是否安全可抓取 (基本 SSRF 防護)"""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False, "僅支援 http/https 網址"
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "網址缺少主機名稱"
+
+        normalized_host = hostname.lower()
+        if normalized_host in BLOCKED_HOSTS or normalized_host.endswith('.local'):
+            return False, "不允許存取本機或內網位址"
+
+        try:
+            host_ip = ipaddress.ip_address(hostname)
+            if (
+                host_ip.is_private
+                or host_ip.is_loopback
+                or host_ip.is_link_local
+                or host_ip.is_multicast
+                or host_ip.is_reserved
+                or host_ip.is_unspecified
+            ):
+                return False, "不允許存取內網或保留位址"
+        except ValueError:
+            pass
+
+        # 解析 DNS 並阻擋解析到私有/本機網段
+        port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+        loop = asyncio.get_running_loop()
+        infos = await loop.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+        for info in infos:
+            ip_text = info[4][0]
+            resolved_ip = ipaddress.ip_address(ip_text)
+            if (
+                resolved_ip.is_private
+                or resolved_ip.is_loopback
+                or resolved_ip.is_link_local
+                or resolved_ip.is_multicast
+                or resolved_ip.is_reserved
+                or resolved_ip.is_unspecified
+            ):
+                return False, "不允許存取內網或保留位址"
+
+        return True, ""
+    except socket.gaierror:
+        return False, "無法解析網址主機"
+    except Exception:
+        return False, "網址格式不正確"
 
 async def search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """網頁搜尋處理器"""
@@ -21,7 +81,7 @@ async def search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         # 使用 DuckDuckGo HTML 搜尋 (不需要 API key)
-        results = search_duckduckgo(query)
+        results = await search_duckduckgo(query)
         
         if not results:
             await update.message.reply_text("沒有找到相關結果。")
@@ -51,19 +111,27 @@ async def summarize_url_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return
     
     url = context.args[0]
+
+    is_safe, reason = await is_safe_url(url)
+    if not is_safe:
+        await update.message.reply_text(f"網址不可用: {reason}")
+        return
     
     await update.message.reply_text("📄 正在分析網頁內容...")
     
     try:
         # 抓取網頁內容
-        content = fetch_web_content(url)
+        content = await fetch_web_content(url)
         
         if not content:
             await update.message.reply_text("無法讀取網頁內容。")
             return
         
         # 使用 AI 總結
-        summary = ai_helper.summarize_web_content(content)
+        summary = await run_in_thread_with_retry(
+            ai_helper.summarize_web_content,
+            content
+        )
         
         response = (
             f"📄 網頁摘要\n"
@@ -76,7 +144,7 @@ async def summarize_url_handler(update: Update, context: ContextTypes.DEFAULT_TY
     except Exception as e:
         await update.message.reply_text(f"總結網頁時發生錯誤: {str(e)}")
 
-def search_duckduckgo(query, num_results=5):
+async def search_duckduckgo(query, num_results=5):
     """使用 DuckDuckGo 搜尋"""
     try:
         url = "https://html.duckduckgo.com/html/"
@@ -85,8 +153,19 @@ def search_duckduckgo(query, num_results=5):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         
-        response = requests.post(url, data=params, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        timeout = aiohttp.ClientTimeout(total=10)
+
+        async def _request():
+            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+                async with session.post(url, data=params) as response:
+                    response.raise_for_status()
+                    return await response.text()
+
+        text = await retry_async(
+            _request,
+            should_retry=is_retryable_http_error
+        )
+        soup = BeautifulSoup(text, 'html.parser')
         
         results = []
         for result in soup.find_all('div', class_='result')[:num_results]:
@@ -110,17 +189,31 @@ def search_duckduckgo(query, num_results=5):
         print(f"搜尋錯誤: {e}")
         return []
 
-def fetch_web_content(url):
+async def fetch_web_content(url):
     """抓取網頁內容"""
     try:
+        is_safe, _ = await is_safe_url(url)
+        if not is_safe:
+            return None
+
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
-        
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
+
+        timeout = aiohttp.ClientTimeout(total=15)
+
+        async def _request():
+            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    return await response.read()
+
+        content_bytes = await retry_async(
+            _request,
+            should_retry=is_retryable_http_error
+        )
+
+        soup = BeautifulSoup(content_bytes, 'html.parser')
         
         # 移除 script 和 style 標籤
         for script in soup(['script', 'style', 'nav', 'footer', 'header']):
@@ -153,7 +246,7 @@ async def quick_search_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text("🔍 正在搜尋...")
     
     try:
-        results = search_duckduckgo(query, num_results=3)
+        results = await search_duckduckgo(query, num_results=3)
         
         if not results:
             await update.message.reply_text("沒有找到相關結果。")
@@ -162,9 +255,13 @@ async def quick_search_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         # 總結前幾個結果
         summaries = []
         for result in results[:2]:
-            content = fetch_web_content(result['url'])
+            content = await fetch_web_content(result['url'])
             if content:
-                summary = ai_helper.summarize_web_content(content, max_length=200)
+                summary = await run_in_thread_with_retry(
+                    ai_helper.summarize_web_content,
+                    content,
+                    200
+                )
                 summaries.append(f"📌 {result['title']}\n{summary}")
         
         if summaries:

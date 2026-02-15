@@ -5,6 +5,7 @@ Telegram AI 智能助理
 """
 
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -18,6 +19,7 @@ import config
 from database.models import init_db
 from utils.scheduler import SchedulerManager
 from utils.openai_helper import OpenAIHelper
+from utils.intent_router import route_message
 
 # 匯入各功能處理器
 from handlers.calendar import calendar_handler
@@ -127,63 +129,35 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """處理一般訊息"""
-    user_id = update.effective_user.id
-    message_text = update.message.text.lower()
-    
-    # 判斷訊息類型並路由到對應的處理器
-    
-    # 行事曆相關關鍵字
-    calendar_keywords = ['行程', '會議', '約', '提醒', '明天', '下週', '月', '日']
-    if any(keyword in message_text for keyword in calendar_keywords):
-        if any(word in message_text for word in ['查', '看', '有什麼', '什麼時候']):
-            await calendar_handler(update, context)
-            return
-        elif any(word in message_text for word in ['刪', '取消', '不去']):
-            await calendar_handler(update, context)
-            return
-        elif '點' in message_text or '時' in message_text:
-            await calendar_handler(update, context)
-            return
-    
-    # 記帳相關關鍵字
-    expense_keywords = ['花', '支出', '收入', '薪水', '元', '塊', '錢', '記帳']
-    if any(keyword in message_text for keyword in expense_keywords):
-        if any(word in message_text for word in ['多少', '總共', '統計', '查詢', '本月', '今天']):
-            await expense_handler(update, context)
-            return
-        elif any(char.isdigit() for char in message_text):
-            await expense_handler(update, context)
-            return
-    
-    # 搜尋相關關鍵字
-    search_keywords = ['搜尋', '查詢', '找', '搜', 'search']
-    if any(keyword in message_text for keyword in search_keywords):
+    message_text_raw = update.message.text or ""
+    routing = await route_message(message_text_raw)
+
+    if routing.intent == "calendar":
+        await calendar_handler(update, context)
+        return
+
+    if routing.intent == "expense":
+        await expense_handler(update, context)
+        return
+
+    if routing.intent == "search":
         await quick_search_handler(update, context)
         return
-    
-    # 天氣相關關鍵字
-    weather_keywords = ['天氣', '氣溫', '下雨', '溫度', 'weather']
-    if any(keyword in message_text for keyword in weather_keywords):
-        # 提取城市名稱
-        city = message_text.replace('天氣', '').replace('氣溫', '').replace('weather', '').strip()
-        if not city:
-            city = '台北'
-        context.args = [city]
+
+    if routing.intent == "weather":
+        context.args = routing.args if routing.args else ["台北"]
         await weather_handler(update, context)
         return
-    
-    # 股票相關關鍵字
-    stock_keywords = ['股票', '股價', '大盤', 'stock']
-    if any(keyword in message_text for keyword in stock_keywords):
-        # 提取股票代碼
-        words = message_text.split()
-        for word in words:
-            if word.isdigit() or word.isupper():
-                context.args = [word]
-                await stock_handler(update, context)
-                return
-    
-    # 一般對話 - 使用 OpenAI
+
+    if routing.intent == "stock":
+        if routing.args:
+            context.args = routing.args
+            await stock_handler(update, context)
+            return
+        await update.message.reply_text("請提供股票代碼，例如：2330 或 AAPL")
+        return
+
+    # 一般對話
     await general_chat_handler(update, context)
 
 async def general_chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -212,7 +186,8 @@ async def general_chat_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     )
     
     # 使用 OpenAI 生成回應
-    response = ai_helper.general_chat(
+    response = await asyncio.to_thread(
+        ai_helper.general_chat,
         message_text,
         conversation_history.get(user_id)
     )

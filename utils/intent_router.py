@@ -1,0 +1,99 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+from dataclasses import dataclass, field
+
+SUPPORTED_INTENTS = {"calendar", "expense", "search", "weather", "stock", "chat"}
+
+
+@dataclass
+class RoutingResult:
+    intent: str
+    args: list[str] = field(default_factory=list)
+    confidence: float = 0.0
+
+
+def _extract_stock_symbol(text: str) -> str | None:
+    candidates = re.findall(r"\^?[A-Za-z]{1,5}|\d{4}", text)
+    if not candidates:
+        return None
+    return candidates[0].upper()
+
+
+def _rule_route(text: str) -> RoutingResult | None:
+    lowered = text.lower().strip()
+    if not lowered:
+        return RoutingResult(intent="chat", confidence=1.0)
+
+    if any(token in lowered for token in ["天氣", "氣溫", "下雨", "weather"]):
+        city = text
+        for trigger in ["天氣", "氣溫", "下雨", "weather"]:
+            city = city.replace(trigger, "")
+        city = city.strip() or "台北"
+        return RoutingResult(intent="weather", args=[city], confidence=0.9)
+
+    if any(token in lowered for token in ["股票", "股價", "大盤", "stock"]):
+        symbol = _extract_stock_symbol(text)
+        return RoutingResult(
+            intent="stock",
+            args=[symbol] if symbol else [],
+            confidence=0.88 if symbol else 0.7
+        )
+
+    if any(token in lowered for token in ["搜尋", "查詢", "找", "search"]):
+        return RoutingResult(intent="search", confidence=0.8)
+
+    if any(token in lowered for token in ["花", "支出", "收入", "薪水", "記帳", "預算", "元", "塊"]):
+        return RoutingResult(intent="expense", confidence=0.8)
+
+    if any(token in lowered for token in ["行程", "會議", "提醒", "明天", "下週", "日程"]):
+        return RoutingResult(intent="calendar", confidence=0.8)
+
+    return None
+
+
+async def _ai_route(text: str) -> RoutingResult | None:
+    try:
+        from utils.openai_helper import OpenAIHelper
+    except Exception:
+        return None
+
+    ai_helper = OpenAIHelper()
+    system_prompt = (
+        "你是 Telegram 助理的路由器。"
+        "請把使用者訊息分類到 intent: calendar/expense/search/weather/stock/chat。"
+        "回傳 JSON: {\"intent\":\"...\", \"args\":[...], \"confidence\":0~1}"
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": text},
+    ]
+    raw = await asyncio.to_thread(ai_helper.chat_completion, messages, 0)
+    try:
+        data = json.loads(raw)
+        intent = data.get("intent", "").strip().lower()
+        args = data.get("args", [])
+        confidence = float(data.get("confidence", 0.0))
+        if intent not in SUPPORTED_INTENTS:
+            return None
+        if not isinstance(args, list):
+            args = []
+        return RoutingResult(intent=intent, args=[str(a) for a in args], confidence=confidence)
+    except Exception:
+        return None
+
+
+async def route_message(text: str) -> RoutingResult:
+    rule_result = _rule_route(text)
+    if rule_result and rule_result.confidence >= 0.85:
+        return rule_result
+
+    ai_result = await _ai_route(text)
+    if ai_result and ai_result.confidence >= 0.55:
+        return ai_result
+
+    if rule_result:
+        return rule_result
+    return RoutingResult(intent="chat", confidence=0.4)

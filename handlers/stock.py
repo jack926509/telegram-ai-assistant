@@ -1,7 +1,8 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 import yfinance as yf
-from datetime import datetime, timedelta
+import asyncio
+from utils.retry import run_in_thread_with_retry
 
 async def stock_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """股價查詢處理器"""
@@ -23,7 +24,7 @@ async def stock_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"📈 正在查詢 {symbol} 的股價...")
     
     try:
-        stock_data = get_stock_info(symbol)
+        stock_data = await run_in_thread_with_retry(get_stock_info, symbol)
         
         if stock_data:
             await update.message.reply_text(stock_data, parse_mode='Markdown')
@@ -116,6 +117,39 @@ def get_stock_info(symbol):
         print(f"取得股票資訊錯誤: {e}")
         return None
 
+
+def get_stock_history(symbol, period):
+    """取得股票歷史資料"""
+    stock = yf.Ticker(symbol)
+    return stock.history(period=period)
+
+
+def get_watchlist_item(symbol):
+    """取得觀察清單單一股票資訊"""
+    try:
+        stock = yf.Ticker(symbol)
+        info = stock.info
+
+        current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+        previous_close = info.get('previousClose')
+
+        if current_price and previous_close:
+            change_percent = ((current_price - previous_close) / previous_close) * 100
+
+            if change_percent > 0:
+                emoji = "📈"
+            elif change_percent < 0:
+                emoji = "📉"
+            else:
+                emoji = "➡️"
+
+            name = info.get('shortName', symbol)
+            return f"{emoji} {name}: {current_price:.2f} ({change_percent:+.2f}%)"
+    except Exception:
+        return None
+
+    return None
+
 async def stock_chart_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """股價走勢圖"""
     if not context.args or len(context.args) == 0:
@@ -132,10 +166,8 @@ async def stock_chart_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(f"📊 正在生成 {symbol} 的走勢圖...")
     
     try:
-        stock = yf.Ticker(symbol)
-        
         # 取得歷史數據
-        hist = stock.history(period=period)
+        hist = await run_in_thread_with_retry(get_stock_history, symbol, period)
         
         if hist.empty:
             await update.message.reply_text("無法取得歷史數據")
@@ -174,29 +206,12 @@ async def watchlist_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📊 正在查詢熱門股票...")
     
     result = "📊 *熱門股票*\n\n"
-    
-    for symbol in watchlist:
-        try:
-            stock = yf.Ticker(symbol)
-            info = stock.info
-            
-            current_price = info.get('currentPrice') or info.get('regularMarketPrice')
-            previous_close = info.get('previousClose')
-            
-            if current_price and previous_close:
-                change_percent = ((current_price - previous_close) / previous_close) * 100
-                
-                if change_percent > 0:
-                    emoji = "📈"
-                elif change_percent < 0:
-                    emoji = "📉"
-                else:
-                    emoji = "➡️"
-                
-                name = info.get('shortName', symbol)
-                result += f"{emoji} {name}: {current_price:.2f} ({change_percent:+.2f}%)\n"
-        
-        except:
-            continue
+
+    lines = await asyncio.gather(
+        *(run_in_thread_with_retry(get_watchlist_item, symbol) for symbol in watchlist)
+    )
+    for line in lines:
+        if line:
+            result += f"{line}\n"
     
     await update.message.reply_text(result, parse_mode='Markdown')

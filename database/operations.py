@@ -256,7 +256,13 @@ class DatabaseOperations:
         """更新使用者偏好設定"""
         db = get_db()
         try:
-            preference = DatabaseOperations.get_or_create_user_preference(user_id)
+            preference = db.query(UserPreference).filter(
+                UserPreference.user_id == user_id
+            ).first()
+
+            if not preference:
+                preference = UserPreference(user_id=user_id)
+                db.add(preference)
             
             for key, value in kwargs.items():
                 if hasattr(preference, key):
@@ -264,6 +270,7 @@ class DatabaseOperations:
             
             preference.updated_at = datetime.now()
             db.commit()
+            db.refresh(preference)
             return preference
         finally:
             db.close()

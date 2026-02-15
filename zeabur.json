@@ -15,8 +15,17 @@
       "required": false
     },
     "DATABASE_URL": {
-      "description": "Database URL",
-      "value": "sqlite:///data/assistant.db",
+      "description": "Database URL (recommended: PostgreSQL connection string from Zeabur)",
+      "required": true
+    },
+    "DB_AUTO_MIGRATE": {
+      "description": "Run Alembic migration on startup",
+      "value": "true",
+      "required": false
+    },
+    "DB_ECHO": {
+      "description": "Enable SQLAlchemy SQL logging",
+      "value": "false",
       "required": false
     },
     "TIMEZONE": {

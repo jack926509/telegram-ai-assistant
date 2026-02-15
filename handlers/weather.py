@@ -1,8 +1,9 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-import requests
 import config
 from datetime import datetime
+import aiohttp
+from utils.retry import retry_async, is_retryable_http_error
 
 async def weather_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """天氣查詢處理器"""
@@ -13,10 +14,10 @@ async def weather_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # 如果有 API key,使用 OpenWeatherMap
         if config.WEATHER_API_KEY:
-            weather_data = get_weather_openweathermap(city)
+            weather_data = await get_weather_openweathermap(city)
         else:
             # 否則使用免費的 wttr.in
-            weather_data = get_weather_wttr(city)
+            weather_data = await get_weather_wttr(city)
         
         if weather_data:
             await update.message.reply_text(weather_data, parse_mode='Markdown')
@@ -26,26 +27,44 @@ async def weather_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"查詢天氣時發生錯誤: {str(e)}")
 
-def get_weather_openweathermap(city):
+async def get_weather_openweathermap(city):
     """使用 OpenWeatherMap API 查詢天氣"""
     try:
         # 當前天氣
-        current_url = "http://api.openweathermap.org/data/2.5/weather"
+        current_url = "https://api.openweathermap.org/data/2.5/weather"
         params = {
             'q': city,
             'appid': config.WEATHER_API_KEY,
             'units': 'metric',
             'lang': 'zh_tw'
         }
-        
-        response = requests.get(current_url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
+
+        timeout = aiohttp.ClientTimeout(total=10)
+
+        async def _fetch_current_weather():
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(current_url, params=params) as response:
+                    response.raise_for_status()
+                    return await response.json()
+
+        data = await retry_async(
+            _fetch_current_weather,
+            should_retry=is_retryable_http_error
+        )
+
         # 取得未來天氣
-        forecast_url = "http://api.openweathermap.org/data/2.5/forecast"
-        forecast_response = requests.get(forecast_url, params=params, timeout=10)
-        forecast_data = forecast_response.json() if forecast_response.status_code == 200 else None
+        forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
+
+        async def _fetch_forecast():
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(forecast_url, params=params) as response:
+                    response.raise_for_status()
+                    return await response.json()
+
+        forecast_data = await retry_async(
+            _fetch_forecast,
+            should_retry=is_retryable_http_error
+        )
         
         # 格式化當前天氣
         temp = data['main']['temp']
@@ -82,13 +101,22 @@ def get_weather_openweathermap(city):
         print(f"OpenWeatherMap API 錯誤: {e}")
         return None
 
-def get_weather_wttr(city):
+async def get_weather_wttr(city):
     """使用免費的 wttr.in 服務查詢天氣"""
     try:
         url = f"https://wttr.in/{city}?format=j1&lang=zh"
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        timeout = aiohttp.ClientTimeout(total=10)
+
+        async def _request():
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    return await response.json()
+
+        data = await retry_async(
+            _request,
+            should_retry=is_retryable_http_error
+        )
         
         current = data['current_condition'][0]
         
@@ -152,9 +180,18 @@ async def forecast_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         url = f"https://wttr.in/{city}?format=j1&lang=zh"
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        timeout = aiohttp.ClientTimeout(total=10)
+
+        async def _request():
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    return await response.json()
+
+        data = await retry_async(
+            _request,
+            should_retry=is_retryable_http_error
+        )
         
         result = f"📅 *{city} 未來天氣預報*\n\n"
         

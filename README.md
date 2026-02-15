@@ -70,7 +70,12 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 OPENAI_API_KEY=your_openai_api_key
 WEATHER_API_KEY=your_openweathermap_api_key
 DATABASE_URL=sqlite:///assistant.db
+DB_AUTO_MIGRATE=true
+DB_ECHO=false
 ```
+
+> 正式環境（Zeabur）建議使用 PostgreSQL：
+> `postgresql+psycopg2://<user>:<password>@<host>:5432/<db>`
 
 ### 4. 取得 API Keys
 
