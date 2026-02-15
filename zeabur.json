@@ -1,0 +1,33 @@
+{
+  "name": "telegram-ai-assistant",
+  "description": "AI-powered Telegram bot with calendar, expense tracking, search, weather and stock features",
+  "env": {
+    "TELEGRAM_BOT_TOKEN": {
+      "description": "Telegram Bot Token from @BotFather",
+      "required": true
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API Key",
+      "required": true
+    },
+    "WEATHER_API_KEY": {
+      "description": "OpenWeatherMap API Key (optional)",
+      "required": false
+    },
+    "DATABASE_URL": {
+      "description": "Database URL",
+      "value": "sqlite:///data/assistant.db",
+      "required": false
+    },
+    "TIMEZONE": {
+      "description": "Timezone setting",
+      "value": "Asia/Taipei",
+      "required": false
+    },
+    "OPENAI_MODEL": {
+      "description": "OpenAI model to use",
+      "value": "gpt-4o-mini",
+      "required": false
+    }
+  }
+}
