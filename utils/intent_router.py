@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from dataclasses import dataclass, field
 
-SUPPORTED_INTENTS = {"calendar", "expense", "search", "weather", "stock", "memo", "todo", "chat"}
+SUPPORTED_INTENTS = {"calendar", "expense", "search", "weather", "memo", "todo", "chat"}
 
 # 模組層級單例，避免每次路由都重新建立 OpenAIHelper 實例
 _openai_helper = None
@@ -26,13 +25,6 @@ class RoutingResult:
     confidence: float = 0.0
 
 
-def _extract_stock_symbol(text: str) -> str | None:
-    candidates = re.findall(r"\^?[A-Za-z]{1,5}|\d{4}", text)
-    if not candidates:
-        return None
-    return candidates[0].upper()
-
-
 def _rule_route(text: str) -> RoutingResult | None:
     lowered = text.lower().strip()
     if not lowered:
@@ -44,14 +36,6 @@ def _rule_route(text: str) -> RoutingResult | None:
             city = city.replace(trigger, "")
         city = city.strip() or "台北"
         return RoutingResult(intent="weather", args=[city], confidence=0.9)
-
-    if any(token in lowered for token in ["股票", "股價", "大盤", "stock"]):
-        symbol = _extract_stock_symbol(text)
-        return RoutingResult(
-            intent="stock",
-            args=[symbol] if symbol else [],
-            confidence=0.88 if symbol else 0.7
-        )
 
     if any(token in lowered for token in ["搜尋", "查詢", "找", "search"]):
         return RoutingResult(intent="search", confidence=0.8)
@@ -79,7 +63,7 @@ async def _ai_route(text: str) -> RoutingResult | None:
 
     system_prompt = (
         "你是 Telegram 助理的路由器。"
-        "請把使用者訊息分類到 intent: calendar/expense/search/weather/stock/memo/todo/chat。"
+        "請把使用者訊息分類到 intent: calendar/expense/search/weather/memo/todo/chat。"
         "回傳 JSON: {\"intent\":\"...\", \"args\":[...], \"confidence\":0~1}"
     )
     messages = [

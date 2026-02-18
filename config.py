@@ -95,7 +95,6 @@ FEATURES = {
     'expense': _parse_bool(os.getenv('FEATURE_EXPENSE', 'true'), default=True),
     'search': _parse_bool(os.getenv('FEATURE_SEARCH', 'true'), default=True),
     'weather': _parse_bool(os.getenv('FEATURE_WEATHER', 'true'), default=True),
-    'stock': _parse_bool(os.getenv('FEATURE_STOCK', 'true'), default=True),
     'memo': _parse_bool(os.getenv('FEATURE_MEMO', 'true'), default=True),
     'todo': _parse_bool(os.getenv('FEATURE_TODO', 'true'), default=True),
 }

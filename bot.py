@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Telegram AI 智能助理 — Lumio
-整合 OpenAI、行事曆、記帳、搜尋、天氣、股票、備忘錄、待辦清單等功能
+整合 OpenAI、行事曆、記帳、搜尋、天氣、備忘錄、待辦清單等功能
 """
 
 import asyncio
@@ -32,7 +32,6 @@ from handlers.calendar import calendar_handler
 from handlers.expense import expense_handler, set_budget_handler
 from handlers.search import search_handler, summarize_url_handler, quick_search_handler
 from handlers.weather import weather_handler, forecast_handler
-from handlers.stock import stock_handler, stock_chart_handler, watchlist_handler
 from handlers.memo import add_memo_handler, list_memos_handler, delete_memo_handler, natural_memo_handler
 from handlers.todo import add_todo_handler, list_todos_handler, done_todo_handler, delete_todo_handler, natural_todo_handler
 
@@ -124,11 +123,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
    • /weather [城市] - 即時天氣
    • /forecast [城市] - 未來預報
 
-📈 *股票*
-   • /stock [代碼] - 查詢股價
-   • /chart [代碼] - 走勢圖
-   • /watchlist - 熱門股票
-
 ⚙️ *其他*
    • /newchat - 清除對話記憶，重新開始
    • /help - 查看所有指令
@@ -171,9 +165,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 *天氣:*
 • /weather [城市] / /forecast [城市]
-
-*股票:*
-• /stock [代碼] / /chart [代碼] / /watchlist
 
 *對話:*
 • /newchat - 清除對話記憶重新開始
@@ -235,14 +226,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if routing.intent == "weather":
         context.args = routing.args if routing.args else ["台北"]
         await weather_handler(update, context)
-        return
-
-    if routing.intent == "stock":
-        if routing.args:
-            context.args = routing.args
-            await stock_handler(update, context)
-            return
-        await update.message.reply_text("請提供股票代碼，例如：2330 或 AAPL")
         return
 
     if routing.intent == "memo":
@@ -324,11 +307,6 @@ def main():
         # ── 天氣 ──
         application.add_handler(CommandHandler("weather", weather_handler))
         application.add_handler(CommandHandler("forecast", forecast_handler))
-
-        # ── 股票 ──
-        application.add_handler(CommandHandler("stock", stock_handler))
-        application.add_handler(CommandHandler("chart", stock_chart_handler))
-        application.add_handler(CommandHandler("watchlist", watchlist_handler))
 
         # ── 備忘錄 ──
         application.add_handler(CommandHandler("memo", add_memo_handler))
