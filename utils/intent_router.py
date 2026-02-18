@@ -5,7 +5,18 @@ import json
 import re
 from dataclasses import dataclass, field
 
-SUPPORTED_INTENTS = {"calendar", "expense", "search", "weather", "stock", "chat"}
+SUPPORTED_INTENTS = {"calendar", "expense", "search", "weather", "stock", "memo", "todo", "chat"}
+
+# 模組層級單例，避免每次路由都重新建立 OpenAIHelper 實例
+_openai_helper = None
+
+
+def _get_ai_helper():
+    global _openai_helper
+    if _openai_helper is None:
+        from utils.openai_helper import OpenAIHelper
+        _openai_helper = OpenAIHelper()
+    return _openai_helper
 
 
 @dataclass
@@ -51,19 +62,24 @@ def _rule_route(text: str) -> RoutingResult | None:
     if any(token in lowered for token in ["行程", "會議", "提醒", "明天", "下週", "日程"]):
         return RoutingResult(intent="calendar", confidence=0.8)
 
+    if any(token in lowered for token in ["備忘", "記下", "筆記", "memo"]):
+        return RoutingResult(intent="memo", confidence=0.85)
+
+    if any(token in lowered for token in ["待辦", "todo", "任務清單", "要做"]):
+        return RoutingResult(intent="todo", confidence=0.85)
+
     return None
 
 
 async def _ai_route(text: str) -> RoutingResult | None:
     try:
-        from utils.openai_helper import OpenAIHelper
+        ai_helper = _get_ai_helper()
     except Exception:
         return None
 
-    ai_helper = OpenAIHelper()
     system_prompt = (
         "你是 Telegram 助理的路由器。"
-        "請把使用者訊息分類到 intent: calendar/expense/search/weather/stock/chat。"
+        "請把使用者訊息分類到 intent: calendar/expense/search/weather/stock/memo/todo/chat。"
         "回傳 JSON: {\"intent\":\"...\", \"args\":[...], \"confidence\":0~1}"
     )
     messages = [

@@ -1,9 +1,14 @@
+import logging
+from datetime import datetime
+
+import aiohttp
 from telegram import Update
 from telegram.ext import ContextTypes
+
 import config
-from datetime import datetime
-import aiohttp
 from utils.retry import retry_async, is_retryable_http_error
+
+logger = logging.getLogger(__name__)
 
 async def weather_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """天氣查詢處理器"""
@@ -24,8 +29,9 @@ async def weather_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("無法取得天氣資訊,請檢查城市名稱是否正確。")
     
-    except Exception as e:
-        await update.message.reply_text(f"查詢天氣時發生錯誤: {str(e)}")
+    except Exception:
+        logger.exception("weather_handler failed: city=%s", city)
+        await update.message.reply_text("查詢天氣時發生錯誤，請稍後再試。")
 
 async def get_weather_openweathermap(city):
     """使用 OpenWeatherMap API 查詢天氣"""
@@ -97,8 +103,8 @@ async def get_weather_openweathermap(city):
         
         return result
     
-    except Exception as e:
-        print(f"OpenWeatherMap API 錯誤: {e}")
+    except Exception:
+        logger.exception("openweathermap failed: city=%s", city)
         return None
 
 async def get_weather_wttr(city):
@@ -146,8 +152,8 @@ async def get_weather_wttr(city):
         
         return result
     
-    except Exception as e:
-        print(f"wttr.in 錯誤: {e}")
+    except Exception:
+        logger.exception("wttr.in failed: city=%s", city)
         return None
 
 def get_weather_emoji(weather_id):
@@ -212,5 +218,6 @@ async def forecast_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(result, parse_mode='Markdown')
     
-    except Exception as e:
-        await update.message.reply_text(f"查詢預報時發生錯誤: {str(e)}")
+    except Exception:
+        logger.exception("forecast_handler failed: city=%s", city)
+        await update.message.reply_text("查詢預報時發生錯誤，請稍後再試。")

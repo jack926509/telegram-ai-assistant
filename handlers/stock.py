@@ -1,8 +1,13 @@
-from telegram import Update
-from telegram.ext import ContextTypes
+import logging
+
 import yfinance as yf
 import asyncio
+from telegram import Update
+from telegram.ext import ContextTypes
+
 from utils.retry import run_in_thread_with_retry
+
+logger = logging.getLogger(__name__)
 
 async def stock_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """股價查詢處理器"""
@@ -34,8 +39,9 @@ async def stock_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "請確認股票代碼是否正確。"
             )
     
-    except Exception as e:
-        await update.message.reply_text(f"查詢股價時發生錯誤: {str(e)}")
+    except Exception:
+        logger.exception("stock_handler failed: symbol=%s", symbol)
+        await update.message.reply_text("查詢股價時發生錯誤，請稍後再試。")
 
 def get_stock_info(symbol):
     """取得股票資訊"""
@@ -145,8 +151,8 @@ def get_stock_info(symbol):
         
         return result
     
-    except Exception as e:
-        print(f"取得股票資訊錯誤: {e}")
+    except Exception:
+        logger.exception("get_stock_info failed: symbol=%s", symbol)
         return None
 
 
@@ -227,8 +233,9 @@ async def stock_chart_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         await update.message.reply_text(result, parse_mode='Markdown')
     
-    except Exception as e:
-        await update.message.reply_text(f"生成圖表時發生錯誤: {str(e)}")
+    except Exception:
+        logger.exception("stock_chart_handler failed: symbol=%s", symbol)
+        await update.message.reply_text("生成走勢圖時發生錯誤，請稍後再試。")
 
 async def watchlist_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """股票觀察清單 (簡化版)"""

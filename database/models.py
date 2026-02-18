@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, Integer, String, create_engine, text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, Integer, String, Text, create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 import config
@@ -63,6 +63,51 @@ class UserPreference(Base):
 
     def __repr__(self):
         return f"<UserPreference(user_id={self.user_id})>"
+
+
+class ConversationHistory(Base):
+    """對話歷史記錄模型"""
+
+    __tablename__ = "conversation_history"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # 'user' or 'assistant'
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<ConversationHistory(user_id={self.user_id}, role='{self.role}')>"
+
+
+class Memo(Base):
+    """備忘錄模型"""
+
+    __tablename__ = "memos"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<Memo(user_id={self.user_id}, content='{self.content[:30]}')>"
+
+
+class TodoItem(Base):
+    """待辦事項模型"""
+
+    __tablename__ = "todo_items"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    content = Column(String(500), nullable=False)
+    is_done = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.now)
+    done_at = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<TodoItem(user_id={self.user_id}, content='{self.content[:30]}', done={self.is_done})>"
 
 
 def _engine_options():
