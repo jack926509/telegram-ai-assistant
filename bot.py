@@ -14,8 +14,10 @@ from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
+    TypeHandler,
     filters,
-    ContextTypes
+    ContextTypes,
+    ApplicationHandlerStop,
 )
 
 import config
@@ -46,6 +48,23 @@ ai_helper = OpenAIHelper()
 
 # 資料庫操作
 db_ops = DatabaseOperations()
+
+# ── 白名單中間層 ──────────────────────────────────────────
+async def whitelist_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """在所有 handler 之前執行，未授權使用者直接拒絕"""
+    if not config.ALLOWED_USER_IDS:
+        return  # 未設定白名單 → 所有人皆可使用
+
+    user = update.effective_user
+    if user is None or user.id not in config.ALLOWED_USER_IDS:
+        if update.effective_message:
+            await update.effective_message.reply_text(
+                "抱歉，你沒有使用 Lumio 的權限。\n"
+                "請聯絡管理員取得授權。"
+            )
+        logger.warning("未授權存取: user_id=%s", user.id if user else "unknown")
+        raise ApplicationHandlerStop  # 終止後續所有 handler
+
 
 # ── 速率限制 ──────────────────────────────────────────────
 _rate_limit_store: dict[int, deque] = defaultdict(deque)
@@ -286,6 +305,9 @@ def main():
         init_db()
 
         application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+
+        # ── 白名單守衛（group=-1 最先執行）──
+        application.add_handler(TypeHandler(Update, whitelist_guard), group=-1)
 
         # ── 基本指令 ──
         application.add_handler(CommandHandler("start", start_command))

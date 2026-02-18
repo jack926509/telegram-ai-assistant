@@ -15,6 +15,19 @@ ai_helper = OpenAIHelper()
 logger = logging.getLogger(__name__)
 
 
+def _find_conflicts(new_start, new_end, existing_events):
+    """找出與新行程時段重疊的既有行程清單"""
+    conflicts = []
+    for ev in existing_events:
+        ev_start = ev.start_time
+        # 若事件無 end_time，預設持續 1 小時
+        ev_end = ev.end_time if ev.end_time else ev_start + timedelta(hours=1)
+        # 時間重疊判斷: A.start < B.end AND A.end > B.start
+        if new_start < ev_end and new_end > ev_start:
+            conflicts.append(ev)
+    return conflicts
+
+
 async def calendar_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """行事曆主處理器"""
     user_id = update.effective_user.id
@@ -72,6 +85,18 @@ async def handle_create_event(update, context, user_id, intent_data):
         reminder_minutes = intent_data.get('reminder_minutes', 30)
         reminder_time = start_time - timedelta(minutes=reminder_minutes)
 
+        # ── 衝突偵測 ──────────────────────────────────────
+        # 新行程若無 end_time，預設持續 1 小時進行衝突比對
+        check_end = end_time if end_time else start_time + timedelta(hours=1)
+        # 只抓同一天的行程範圍比對即可
+        day_start = start_time.replace(hour=0, minute=0, second=0)
+        day_end = start_time.replace(hour=23, minute=59, second=59)
+        existing = await asyncio.to_thread(
+            db_ops.get_user_events, user_id, day_start, day_end
+        )
+        conflicts = _find_conflicts(start_time, check_end, existing)
+        # ─────────────────────────────────────────────────
+
         event = await asyncio.to_thread(
             db_ops.create_event,
             user_id=user_id,
@@ -92,6 +117,14 @@ async def handle_create_event(update, context, user_id, intent_data):
             response += f"📝 {event.description}\n"
 
         response += f"⏰ 將在 {reminder_minutes} 分鐘前提醒你"
+
+        # 若有衝突，附上警告訊息
+        if conflicts:
+            conflict_names = "、".join(f"「{c.title}」" for c in conflicts[:3])
+            response += (
+                f"\n\n⚠️ 注意：此時段與 {conflict_names} 有時間衝突，"
+                f"請確認行程安排！"
+            )
 
         await update.message.reply_text(response)
 

@@ -55,6 +55,21 @@ MESSAGE_MAX_LENGTH = int(os.getenv('MESSAGE_MAX_LENGTH', 2000))
 # 對話歷史保留筆數
 CONVERSATION_HISTORY_LIMIT = int(os.getenv('CONVERSATION_HISTORY_LIMIT', 20))
 
+# 使用者白名單 (留空 = 不限制；多個 ID 用逗號分隔)
+# 範例: ALLOWED_USER_IDS=123456789,987654321
+ALLOWED_USER_IDS: set[int] = set(
+    int(uid.strip())
+    for uid in os.getenv('ALLOWED_USER_IDS', '').split(',')
+    if uid.strip().isdigit()
+)
+
+# 晨間簡報發送時間
+MORNING_BRIEFING_HOUR = int(os.getenv('MORNING_BRIEFING_HOUR', 8))
+MORNING_BRIEFING_MINUTE = int(os.getenv('MORNING_BRIEFING_MINUTE', 0))
+
+# 預算預警門檻（0~1 之間的比例，預設 80%）
+BUDGET_WARNING_THRESHOLD = float(os.getenv('BUDGET_WARNING_THRESHOLD', 0.8))
+
 
 # 驗證必要的環境變數
 def validate_config():
