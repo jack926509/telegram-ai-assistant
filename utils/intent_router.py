@@ -4,7 +4,10 @@ import asyncio
 import json
 from dataclasses import dataclass, field
 
-SUPPORTED_INTENTS = {"calendar", "expense", "search", "weather", "memo", "todo", "chat"}
+SUPPORTED_INTENTS = {
+    "calendar", "expense", "search", "weather",
+    "memo", "todo", "translate", "exchange", "chat",
+}
 
 # 模組層級單例，避免每次路由都重新建立 OpenAIHelper 實例
 _openai_helper = None
@@ -52,6 +55,12 @@ def _rule_route(text: str) -> RoutingResult | None:
     if any(token in lowered for token in ["待辦", "todo", "任務清單", "要做"]):
         return RoutingResult(intent="todo", confidence=0.85)
 
+    if any(token in lowered for token in ["翻譯", "translate"]):
+        return RoutingResult(intent="translate", confidence=0.9)
+
+    if any(token in lowered for token in ["匯率", "換算", "兌換", "美金換", "日幣換", "exchange rate"]):
+        return RoutingResult(intent="exchange", confidence=0.9)
+
     return None
 
 
@@ -63,7 +72,10 @@ async def _ai_route(text: str) -> RoutingResult | None:
 
     system_prompt = (
         "你是 Telegram 助理的路由器。"
-        "請把使用者訊息分類到 intent: calendar/expense/search/weather/memo/todo/chat。"
+        "請把使用者訊息分類到以下 intent 之一:\n"
+        "calendar/expense/search/weather/memo/todo/translate/exchange/chat\n"
+        "- translate: 翻譯需求\n"
+        "- exchange: 匯率換算\n"
         "回傳 JSON: {\"intent\":\"...\", \"args\":[...], \"confidence\":0~1}"
     )
     messages = [

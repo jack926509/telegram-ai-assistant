@@ -91,6 +91,35 @@ async def delete_memo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("刪除備忘錄時發生錯誤，請稍後再試。")
 
 
+async def search_memo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/searchmemo [關鍵字] — 搜尋備忘錄"""
+    user_id = update.effective_user.id
+    keyword = ' '.join(context.args) if context.args else None
+
+    if not keyword:
+        await update.message.reply_text("請提供搜尋關鍵字，例如: /searchmemo 牛奶")
+        return
+
+    try:
+        memos = await asyncio.to_thread(db_ops.search_memos, user_id, keyword)
+
+        if not memos:
+            await update.message.reply_text(f"找不到包含「{keyword}」的備忘錄。")
+            return
+
+        response = f"📝 搜尋「{keyword}」的結果（{len(memos)} 筆）\n\n"
+        for memo in memos:
+            response += (
+                f"#{memo.id} {memo.content}\n"
+                f"   🕐 {memo.created_at.strftime('%m/%d %H:%M')}\n\n"
+            )
+        await update.message.reply_text(response)
+
+    except Exception:
+        logger.exception("search_memo failed: user_id=%s", user_id)
+        await update.message.reply_text("搜尋備忘錄時發生錯誤，請稍後再試。")
+
+
 async def natural_memo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """處理自然語言備忘錄 (例如: '記下明天要買東西')"""
     user_id = update.effective_user.id

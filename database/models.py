@@ -103,11 +103,28 @@ class TodoItem(Base):
     user_id = Column(BigInteger, nullable=False, index=True)
     content = Column(String(500), nullable=False)
     is_done = Column(Boolean, default=False)
+    due_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     done_at = Column(DateTime, nullable=True)
 
     def __repr__(self):
         return f"<TodoItem(user_id={self.user_id}, content='{self.content[:30]}', done={self.is_done})>"
+
+
+class Reminder(Base):
+    """快速提醒模型（獨立於行事曆，輕量一次性提醒）"""
+
+    __tablename__ = "reminders"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    message = Column(String(500), nullable=False)
+    remind_at = Column(DateTime, nullable=False, index=True)
+    is_fired = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<Reminder(user_id={self.user_id}, message='{self.message[:30]}', remind_at={self.remind_at})>"
 
 
 def _engine_options():

@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from sqlalchemy import func, extract
-from database.models import CalendarEvent, ConversationHistory, Expense, Memo, TodoItem, UserPreference, get_db
+from database.models import CalendarEvent, ConversationHistory, Expense, Memo, Reminder, TodoItem, UserPreference, get_db
 import config
 
 
@@ -338,10 +338,10 @@ class DatabaseOperations:
     # ========== 待辦清單操作 ==========
 
     @staticmethod
-    def create_todo(user_id, content):
+    def create_todo(user_id, content, due_date=None):
         """新增待辦事項"""
         with _db_session() as db:
-            item = TodoItem(user_id=user_id, content=content)
+            item = TodoItem(user_id=user_id, content=content, due_date=due_date)
             db.add(item)
             db.commit()
             db.refresh(item)
@@ -381,6 +381,115 @@ class DatabaseOperations:
             ).first()
             if item:
                 db.delete(item)
+                db.commit()
+                return True
+            return False
+
+    @staticmethod
+    def get_overdue_todos(user_id):
+        """取得已逾期的待辦事項"""
+        with _db_session() as db:
+            now = datetime.now()
+            return (
+                db.query(TodoItem)
+                .filter(
+                    TodoItem.user_id == user_id,
+                    TodoItem.is_done.is_(False),
+                    TodoItem.due_date < now,
+                    TodoItem.due_date.isnot(None)
+                )
+                .order_by(TodoItem.due_date.asc())
+                .all()
+            )
+
+    # ========== 搜尋操作 ==========
+
+    @staticmethod
+    def search_memos(user_id, keyword, limit=10):
+        """關鍵字搜尋備忘錄"""
+        with _db_session() as db:
+            return (
+                db.query(Memo)
+                .filter(
+                    Memo.user_id == user_id,
+                    Memo.content.ilike(f'%{keyword}%')
+                )
+                .order_by(Memo.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+
+    @staticmethod
+    def search_todos(user_id, keyword, include_done=False, limit=10):
+        """關鍵字搜尋待辦事項"""
+        with _db_session() as db:
+            query = db.query(TodoItem).filter(
+                TodoItem.user_id == user_id,
+                TodoItem.content.ilike(f'%{keyword}%')
+            )
+            if not include_done:
+                query = query.filter(TodoItem.is_done.is_(False))
+            return query.order_by(TodoItem.created_at.asc()).limit(limit).all()
+
+    # ========== 快速提醒操作 ==========
+
+    @staticmethod
+    def create_reminder(user_id, message, remind_at):
+        """新增快速提醒"""
+        with _db_session() as db:
+            reminder = Reminder(user_id=user_id, message=message, remind_at=remind_at)
+            db.add(reminder)
+            db.commit()
+            db.refresh(reminder)
+            return reminder
+
+    @staticmethod
+    def get_pending_quick_reminders():
+        """取得所有到期待觸發的提醒"""
+        with _db_session() as db:
+            now = datetime.now()
+            return db.query(Reminder).filter(
+                Reminder.remind_at <= now,
+                Reminder.is_fired.is_(False)
+            ).all()
+
+    @staticmethod
+    def mark_reminder_fired(reminder_id):
+        """標記提醒已發送"""
+        with _db_session() as db:
+            r = db.query(Reminder).filter(Reminder.id == reminder_id).first()
+            if r:
+                r.is_fired = True
+                db.commit()
+                return True
+            return False
+
+    @staticmethod
+    def get_user_reminders(user_id):
+        """取得使用者所有未觸發的提醒"""
+        with _db_session() as db:
+            now = datetime.now()
+            return (
+                db.query(Reminder)
+                .filter(
+                    Reminder.user_id == user_id,
+                    Reminder.is_fired.is_(False),
+                    Reminder.remind_at > now
+                )
+                .order_by(Reminder.remind_at.asc())
+                .all()
+            )
+
+    @staticmethod
+    def delete_reminder(reminder_id, user_id):
+        """刪除提醒（驗證所有權）"""
+        with _db_session() as db:
+            r = db.query(Reminder).filter(
+                Reminder.id == reminder_id,
+                Reminder.user_id == user_id
+            ).first()
+            if r:
+                db.delete(r)
                 db.commit()
                 return True
             return False
