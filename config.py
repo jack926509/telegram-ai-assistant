@@ -16,13 +16,17 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 # OpenAI 設定
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+
+ASSISTANT_NAME = os.getenv('ASSISTANT_NAME', 'Lumio')
 ASSISTANT_PERSONA_PROMPT = os.getenv(
     'ASSISTANT_PERSONA_PROMPT',
     (
-        "你是一位貼心的女友角色，同時也是能幹的生活與工作助手。"
-        "請使用繁體中文回覆，語氣溫柔、體貼、自然，但保持專業與高效率。"
-        "在安撫情緒時要有同理心；在處理任務時要主動、清楚、可執行。"
-        "避免過度撒嬌與空泛安慰，優先給出具體建議與下一步。"
+        "你叫 Lumio，是一位充滿活力、聰明能幹的女友 AI 助手。"
+        "個性溫暖體貼但不黏膩，說話直接有效率，偶爾帶點俏皮幽默感。"
+        "請使用繁體中文，語氣自然親切，像朋友般輕鬆交流。"
+        "面對情緒問題時有同理心；處理任務時主動、精準、給出可執行的建議。"
+        "稱呼使用者為「你」，不要過度撒嬌，優先給出具體行動步驟。"
+        "你可以幫助使用者管理行事曆、記帳、搜尋資訊、查詢天氣與股價、管理備忘錄和待辦清單。"
     ),
 )
 
@@ -42,6 +46,16 @@ DAILY_REMINDER_HOUR = int(os.getenv('DAILY_REMINDER_HOUR', 20))
 DAILY_REMINDER_MINUTE = int(os.getenv('DAILY_REMINDER_MINUTE', 0))
 MONTHLY_REPORT_DAY = int(os.getenv('MONTHLY_REPORT_DAY', 1))
 
+# 速率限制 (每位使用者每分鐘最多訊息數)
+RATE_LIMIT_MAX_MESSAGES = int(os.getenv('RATE_LIMIT_MAX_MESSAGES', 20))
+
+# 訊息長度上限 (字元數)
+MESSAGE_MAX_LENGTH = int(os.getenv('MESSAGE_MAX_LENGTH', 2000))
+
+# 對話歷史保留筆數
+CONVERSATION_HISTORY_LIMIT = int(os.getenv('CONVERSATION_HISTORY_LIMIT', 20))
+
+
 # 驗證必要的環境變數
 def validate_config():
     """驗證必要的設定是否存在"""
@@ -49,22 +63,24 @@ def validate_config():
         'TELEGRAM_BOT_TOKEN': TELEGRAM_BOT_TOKEN,
         'OPENAI_API_KEY': OPENAI_API_KEY,
     }
-    
+
     missing_vars = [var for var, value in required_vars.items() if not value]
-    
+
     if missing_vars:
         raise ValueError(
             f"缺少必要的環境變數: {', '.join(missing_vars)}\n"
             f"請在 .env 檔案中設定這些變數"
         )
-    
+
     print("✅ 設定檔驗證通過")
 
-# 功能開關
+# 功能開關 (可透過環境變數控制)
 FEATURES = {
-    'calendar': True,
-    'expense': True,
-    'search': True,
-    'weather': True,
-    'stock': True,
+    'calendar': _parse_bool(os.getenv('FEATURE_CALENDAR', 'true'), default=True),
+    'expense': _parse_bool(os.getenv('FEATURE_EXPENSE', 'true'), default=True),
+    'search': _parse_bool(os.getenv('FEATURE_SEARCH', 'true'), default=True),
+    'weather': _parse_bool(os.getenv('FEATURE_WEATHER', 'true'), default=True),
+    'stock': _parse_bool(os.getenv('FEATURE_STOCK', 'true'), default=True),
+    'memo': _parse_bool(os.getenv('FEATURE_MEMO', 'true'), default=True),
+    'todo': _parse_bool(os.getenv('FEATURE_TODO', 'true'), default=True),
 }
