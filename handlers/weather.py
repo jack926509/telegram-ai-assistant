@@ -129,7 +129,8 @@ async def get_weather_wttr(city):
         temp = current['temp_C']
         feels_like = current['FeelsLikeC']
         humidity = current['humidity']
-        description = current['lang_zh'][0]['value'] if current.get('lang_zh') else current['weatherDesc'][0]['value']
+        lang_zh = current.get('lang_zh') or []
+        description = lang_zh[0]['value'] if lang_zh else current['weatherDesc'][0]['value']
         wind_speed = current['windspeedKmph']
         
         result = (
@@ -147,7 +148,9 @@ async def get_weather_wttr(city):
                 date = day['date']
                 max_temp = day['maxtempC']
                 min_temp = day['mintempC']
-                desc = day['hourly'][4]['lang_zh'][0]['value'] if day['hourly'][4].get('lang_zh') else day['hourly'][4]['weatherDesc'][0]['value']
+                hourly = day['hourly'][4]
+                lang_zh = hourly.get('lang_zh') or []
+                desc = lang_zh[0]['value'] if lang_zh else hourly['weatherDesc'][0]['value']
                 result += f"{date}: {min_temp}°C ~ {max_temp}°C {desc}\n"
         
         return result
@@ -208,7 +211,8 @@ async def forecast_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # 取得中午的天氣
             noon_weather = day['hourly'][4]
-            desc = noon_weather['lang_zh'][0]['value'] if noon_weather.get('lang_zh') else noon_weather['weatherDesc'][0]['value']
+            lang_zh = noon_weather.get('lang_zh') or []
+            desc = lang_zh[0]['value'] if lang_zh else noon_weather['weatherDesc'][0]['value']
             
             result += (
                 f"📆 {date}\n"

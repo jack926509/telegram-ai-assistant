@@ -67,7 +67,13 @@ async def is_safe_url(url):
 
         port = parsed.port or (443 if parsed.scheme == 'https' else 80)
         loop = asyncio.get_running_loop()
-        infos = await loop.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+        try:
+            infos = await asyncio.wait_for(
+                loop.getaddrinfo(hostname, port, type=socket.SOCK_STREAM),
+                timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            return False, "DNS 解析逾時"
         for info in infos:
             ip_text = info[4][0]
             resolved_ip = ipaddress.ip_address(ip_text)

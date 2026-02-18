@@ -75,6 +75,12 @@ async def handle_create_event(update, context, user_id, intent_data):
             await update.message.reply_text("無法解析時間格式，請重新輸入。")
             return
 
+        # 日期合理性驗證：不超過 10 年內、不早於 1 年前
+        now_year = now_local().year
+        if not (now_year - 1 <= start_time.year <= now_year + 10):
+            await update.message.reply_text("請輸入合理的時間範圍（1 年內至未來 10 年）。")
+            return
+
         end_time = None
         if intent_data.get('end_time'):
             try:

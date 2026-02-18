@@ -9,12 +9,14 @@ import config
 # 初始化 OpenAI 客戶端
 client = OpenAI(api_key=config.OPENAI_API_KEY)
 
+# 預編譯 markdown code block 的正規表達式，避免每次呼叫重新編譯
+_JSON_CODE_BLOCK_RE = re.compile(r'```(?:json)?\s*([\s\S]+?)\s*```')
+
 
 def _extract_json(text: str) -> dict:
     """從可能包含 markdown code block 的文字中安全提取 JSON"""
     stripped = text.strip()
-    # 移除 ```json ... ``` 或 ``` ... ``` 包裝
-    match = re.search(r'```(?:json)?\s*([\s\S]+?)\s*```', stripped)
+    match = _JSON_CODE_BLOCK_RE.search(stripped)
     if match:
         stripped = match.group(1).strip()
     return json.loads(stripped)

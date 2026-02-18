@@ -117,6 +117,12 @@ def _engine_options():
     }
     if config.DATABASE_URL.startswith("sqlite"):
         options["connect_args"] = {"check_same_thread": False}
+    else:
+        # PostgreSQL / MySQL：設定連線池避免高並發耗盡連線
+        options["pool_size"] = 5
+        options["max_overflow"] = 10
+        options["pool_timeout"] = 30
+        options["pool_recycle"] = 1800  # 30 分鐘回收閒置連線
     return options
 
 
