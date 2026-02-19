@@ -9,12 +9,14 @@ import config
 # 初始化 OpenAI 客戶端
 client = OpenAI(api_key=config.OPENAI_API_KEY)
 
+# 預編譯 markdown code block 的正規表達式，避免每次呼叫重新編譯
+_JSON_CODE_BLOCK_RE = re.compile(r'```(?:json)?\s*([\s\S]+?)\s*```')
+
 
 def _extract_json(text: str) -> dict:
     """從可能包含 markdown code block 的文字中安全提取 JSON"""
     stripped = text.strip()
-    # 移除 ```json ... ``` 或 ``` ... ``` 包裝
-    match = re.search(r'```(?:json)?\s*([\s\S]+?)\s*```', stripped)
+    match = _JSON_CODE_BLOCK_RE.search(stripped)
     if match:
         stripped = match.group(1).strip()
     return json.loads(stripped)
@@ -151,6 +153,66 @@ class OpenAIHelper:
         messages.append({"role": "user", "content": user_message})
 
         return OpenAIHelper.chat_completion(messages, temperature=0.8)
+
+    @staticmethod
+    def translate_text(text, target_lang='繁體中文'):
+        """翻譯文字到指定語言"""
+        system_prompt = (
+            f"你是一位專業翻譯。請將使用者提供的文字翻譯成{target_lang}。"
+            "只回傳翻譯結果，不要加入任何解釋或前後文。"
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": text}
+        ]
+        return OpenAIHelper.chat_completion(messages, temperature=0.3, max_tokens=2000)
+
+    @staticmethod
+    def analyze_image(image_b64: str, prompt: str = "請描述這張圖片的內容，並提取其中所有可見的文字。"):
+        """使用 GPT-4o-mini Vision 分析圖片"""
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_b64}",
+                                "detail": "low"
+                            }
+                        }
+                    ]
+                }],
+                max_tokens=800
+            )
+            return response.choices[0].message.content
+        except openai.RateLimitError:
+            return "抱歉，目前請求量太高，請稍後再試。"
+        except openai.AuthenticationError:
+            return "AI 服務驗證失敗，請聯絡管理員。"
+        except Exception:
+            return "分析圖片時發生錯誤，請稍後再試。"
+
+    @staticmethod
+    def transcribe_voice(audio_bytes: bytes) -> str:
+        """使用 Whisper 將語音轉成文字"""
+        import io
+        try:
+            audio_file = io.BytesIO(audio_bytes)
+            audio_file.name = "voice.ogg"
+            response = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                language="zh"
+            )
+            return response.text
+        except openai.RateLimitError:
+            return ""
+        except Exception:
+            return ""
 
     @staticmethod
     def format_calendar_response(events):

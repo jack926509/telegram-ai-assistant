@@ -21,12 +21,20 @@ class SchedulerManager:
     
     def start(self):
         """啟動排程器並註冊所有排程任務"""
-        # 每分鐘檢查待提醒的事件
+        # 每分鐘檢查待提醒的行事曆事件
         self.scheduler.add_job(
             self.check_event_reminders,
             'cron',
             minute='*',
             id='event_reminders'
+        )
+
+        # 每分鐘檢查快速提醒 (remind.py 建立的一次性提醒)
+        self.scheduler.add_job(
+            self.check_quick_reminders,
+            'cron',
+            minute='*',
+            id='quick_reminders'
         )
 
         # 晨間簡報（預設早上 8:00）
@@ -91,6 +99,24 @@ class SchedulerManager:
         except Exception:
             logger.exception("check_event_reminders 執行失敗")
 
+    # ── 快速提醒 ─────────────────────────────────────────
+
+    async def check_quick_reminders(self):
+        """檢查並發送快速提醒（由 /remind 指令建立）"""
+        try:
+            pending = await asyncio.to_thread(self.db_ops.get_pending_quick_reminders)
+            for reminder in pending:
+                try:
+                    await self.bot.send_message(
+                        chat_id=reminder.user_id,
+                        text=f"⏰ 提醒\n\n{reminder.message}"
+                    )
+                    await asyncio.to_thread(self.db_ops.mark_reminder_fired, reminder.id)
+                except Exception:
+                    logger.exception("發送快速提醒失敗: reminder_id=%s", reminder.id)
+        except Exception:
+            logger.exception("check_quick_reminders 執行失敗")
+
     # ── 晨間簡報 ─────────────────────────────────────────
 
     async def send_morning_briefing(self):
@@ -133,6 +159,10 @@ class SchedulerManager:
         else:
             lines.append("📅 今天沒有行程，好好放鬆！")
 
+        overdue = await asyncio.to_thread(
+            self.db_ops.get_overdue_todos, user.user_id
+        )
+
         if todos:
             lines.append(f"\n✅ *待辦事項（{len(todos)} 項待完成）*")
             for item in todos[:5]:
@@ -141,6 +171,13 @@ class SchedulerManager:
                 lines.append(f"  ... 還有 {len(todos) - 5} 項")
         else:
             lines.append("\n✅ 待辦清單已清空，讚！")
+
+        if overdue:
+            lines.append(f"\n⚠️ *逾期待辦（{len(overdue)} 項）*")
+            for item in overdue[:3]:
+                lines.append(f"  ‼️ {item.content}（截止 {item.due_date.strftime('%m/%d')}）")
+            if len(overdue) > 3:
+                lines.append(f"  ... 還有 {len(overdue) - 3} 項逾期")
 
         if yesterday_summary['expense'] > 0 or yesterday_summary['income'] > 0:
             lines.append(

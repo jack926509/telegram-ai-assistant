@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Telegram AI 智能助理 — Lumio
-整合 OpenAI、行事曆、記帳、搜尋、天氣、股票、備忘錄、待辦清單等功能
+整合 OpenAI、行事曆、記帳、搜尋、天氣、備忘錄、待辦清單等功能
 """
 
 import asyncio
@@ -25,16 +25,19 @@ from database.models import init_db
 from database.operations import DatabaseOperations
 from utils.scheduler import SchedulerManager
 from utils.openai_helper import OpenAIHelper
-from utils.intent_router import route_message
 
 # 匯入各功能處理器
 from handlers.calendar import calendar_handler
 from handlers.expense import expense_handler, set_budget_handler
 from handlers.search import search_handler, summarize_url_handler, quick_search_handler
 from handlers.weather import weather_handler, forecast_handler
-from handlers.stock import stock_handler, stock_chart_handler, watchlist_handler
-from handlers.memo import add_memo_handler, list_memos_handler, delete_memo_handler, natural_memo_handler
-from handlers.todo import add_todo_handler, list_todos_handler, done_todo_handler, delete_todo_handler, natural_todo_handler
+from handlers.memo import add_memo_handler, list_memos_handler, delete_memo_handler, search_memo_handler, natural_memo_handler
+from handlers.todo import add_todo_handler, list_todos_handler, done_todo_handler, delete_todo_handler, search_todo_handler, natural_todo_handler
+from handlers.remind import remind_handler, list_reminders_handler, delete_reminder_handler
+from handlers.translate import translate_handler
+from handlers.image import image_handler
+from handlers.voice import voice_handler
+from handlers.exchange import exchange_handler
 
 # 設定日誌
 logging.basicConfig(
@@ -92,48 +95,49 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = f"""
 嗨 {user.first_name}！我是 *{name}* ✨
 
-你的貼身 AI 女友助手，什麼都難不倒我！
+你的貼身 AI 助手，直接跟我說話就好！
 
 📅 *行事曆*
-   • 建立: "明天下午3點開會"
-   • 查詢: "本週的行程"
-   • 修改: "把會議改到後天下午4點"
-   • 刪除: "刪除明天的會議"
+   • "明天下午3點開會" / "本週的行程"
+   • "把會議改到後天4點" / "刪除明天的會議"
+
+⏰ *快速提醒*
+   • /remind 30m 喝水
+   • /remind 14:30 回覆 Email
+   • /reminders - 查看提醒清單
 
 💰 *記帳*
-   • 記錄: "午餐 150 元" / "收入 30000 薪水"
-   • 查詢: "今天花了多少" / "本月支出"
+   • "午餐 150 元" / "收入 30000 薪水"
+   • "今天花了多少" / "本月支出"
    • /setbudget [金額] - 設定月度預算
 
 📝 *備忘錄*
-   • /memo [內容] - 新增備忘錄
-   • /memos - 查看所有備忘錄
-   • /delmemo [編號] - 刪除備忘錄
+   • /memo [內容] - 新增 | /memos - 查看
+   • /searchmemo [關鍵字] - 搜尋
 
 ✅ *待辦清單*
-   • /todo [內容] - 新增待辦事項
-   • /todos - 查看清單
-   • /done [編號] - 標記完成
-   • /deltodo [編號] - 刪除
+   • /todo [內容] [due:日期] - 新增（可設截止日）
+   • /todos - 查看 | /done [編號] - 完成
+   • /searchtodo [關鍵字] - 搜尋
+
+🌐 *翻譯*
+   • /translate hello → 翻成中文
+   • /translate en 你好 → 翻成英文
+
+💱 *匯率*
+   • /exchange 100 USD TWD
+   • "100美金換台幣"
 
 🔍 *搜尋*
-   • /search [關鍵字] - 網頁搜尋
-   • /summarize [網址] - 總結網頁
+   • /search [關鍵字] | /summarize [網址]
 
 🌤 *天氣*
-   • /weather [城市] - 即時天氣
-   • /forecast [城市] - 未來預報
+   • /weather [城市] | /forecast [城市]
 
-📈 *股票*
-   • /stock [代碼] - 查詢股價
-   • /chart [代碼] - 走勢圖
-   • /watchlist - 熱門股票
+🖼 *圖片* — 傳圖片即可分析（可加說明文字）
+🎤 *語音* — 直接傳語音訊息，自動轉文字處理
 
-⚙️ *其他*
-   • /newchat - 清除對話記憶，重新開始
-   • /help - 查看所有指令
-
-直接跟我說話就好，我會懂你的！💬
+⚙️ /newchat - 清除對話記憶 | /help - 指令一覽
 """
 
     await update.message.reply_text(welcome_message, parse_mode='Markdown')
@@ -145,39 +149,50 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = f"""
 🤖 *{name} 指令一覽*
 
-*行事曆:*
-• "明天下午3點開會" / "本週有什麼行程"
-• "把會議改到後天" / "刪除明天的會議"
+*⏰ 快速提醒:*
+• /remind [時間] [內容] — 30m/2h/1d/14:30
+• /reminders — 查看清單
+• /delremind [編號] — 取消
 
-*記帳:*
-• "午餐 150 元" / "收入 30000 薪水"
+*📅 行事曆:*
+• 直接說: "明天下午3點開會"
+• 查詢: "本週的行程"
+• 修改/刪除: 自然語言即可
+
+*💰 記帳:*
+• "午餐 150 元" / "薪水 30000"
 • "今天花了多少" / "本月支出"
-• /setbudget [金額] - 設定預算
+• /setbudget [金額] — 設定預算
 
-*備忘錄:*
-• /memo [內容] - 新增
-• /memos - 查看
-• /delmemo [編號] - 刪除
+*📝 備忘錄:*
+• /memo [內容] / /memos / /delmemo [編號]
+• /searchmemo [關鍵字] — 搜尋
 
-*待辦清單:*
-• /todo [內容] - 新增
-• /todos - 查看
-• /done [編號] - 完成
-• /deltodo [編號] - 刪除
+*✅ 待辦清單:*
+• /todo [內容] [due:日期] / /todos
+• /done [編號] / /deltodo [編號]
+• /searchtodo [關鍵字] — 搜尋
 
-*搜尋:*
-• /search [關鍵字] - 網頁搜尋
-• /summarize [網址] - 總結網頁
+*🌐 翻譯:*
+• /translate [語言] [文字]
+• 直接說: "翻譯成英文: 你好"
 
-*天氣:*
+*💱 匯率:*
+• /exchange [金額] [來源] [目標]
+• 直接說: "100美金換台幣"
+
+*🔍 搜尋:*
+• /search [關鍵字] / /summarize [網址]
+
+*🌤 天氣:*
 • /weather [城市] / /forecast [城市]
 
-*股票:*
-• /stock [代碼] / /chart [代碼] / /watchlist
+*🖼 圖片 / 🎤 語音:*
+• 直接傳圖片或語音即可
 
-*對話:*
-• /newchat - 清除對話記憶重新開始
-• /help - 顯示此訊息
+*⚙️ 其他:*
+• /newchat — 清除對話記憶
+• /help — 顯示此訊息
 """
 
     await update.message.reply_text(help_text, parse_mode='Markdown')
@@ -195,7 +210,7 @@ async def newchat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """處理一般訊息"""
+    """處理一般文字訊息：速率限制 → 長度限制 → 意圖路由"""
     user_id = update.effective_user.id
     message_text_raw = update.message.text or ""
 
@@ -213,79 +228,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    routing = await route_message(message_text_raw)
-
-    # 功能開關檢查
-    if routing.intent in config.FEATURES and not config.FEATURES.get(routing.intent, True):
-        await general_chat_handler(update, context)
-        return
-
-    if routing.intent == "calendar":
-        await calendar_handler(update, context)
-        return
-
-    if routing.intent == "expense":
-        await expense_handler(update, context)
-        return
-
-    if routing.intent == "search":
-        await quick_search_handler(update, context)
-        return
-
-    if routing.intent == "weather":
-        context.args = routing.args if routing.args else ["台北"]
-        await weather_handler(update, context)
-        return
-
-    if routing.intent == "stock":
-        if routing.args:
-            context.args = routing.args
-            await stock_handler(update, context)
-            return
-        await update.message.reply_text("請提供股票代碼，例如：2330 或 AAPL")
-        return
-
-    if routing.intent == "memo":
-        await natural_memo_handler(update, context)
-        return
-
-    if routing.intent == "todo":
-        await natural_todo_handler(update, context)
-        return
-
-    # 一般對話
-    await general_chat_handler(update, context)
-
-
-async def general_chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """處理一般對話（使用資料庫持久化歷史）"""
-    user_id = update.effective_user.id
-    message_text = update.message.text
-
-    # 從 DB 取得對話歷史
-    history_records = await asyncio.to_thread(db_ops.get_conversation_history, user_id)
-    conversation_history = [{"role": r.role, "content": r.content} for r in history_records]
-
-    # 儲存使用者訊息
-    await asyncio.to_thread(db_ops.add_conversation_message, user_id, "user", message_text)
-
-    # 發送 "正在輸入" 指示
-    await context.bot.send_chat_action(
-        chat_id=update.effective_chat.id,
-        action="typing"
-    )
-
-    # 使用 OpenAI 生成回應
-    response = await asyncio.to_thread(
-        ai_helper.general_chat,
-        message_text,
-        conversation_history
-    )
-
-    # 儲存助理回應
-    await asyncio.to_thread(db_ops.add_conversation_message, user_id, "assistant", response)
-
-    await update.message.reply_text(response)
+    from utils.dispatcher import dispatch_text
+    await dispatch_text(update, context, message_text_raw)
 
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -325,23 +269,37 @@ def main():
         application.add_handler(CommandHandler("weather", weather_handler))
         application.add_handler(CommandHandler("forecast", forecast_handler))
 
-        # ── 股票 ──
-        application.add_handler(CommandHandler("stock", stock_handler))
-        application.add_handler(CommandHandler("chart", stock_chart_handler))
-        application.add_handler(CommandHandler("watchlist", watchlist_handler))
-
         # ── 備忘錄 ──
         application.add_handler(CommandHandler("memo", add_memo_handler))
         application.add_handler(CommandHandler("memos", list_memos_handler))
         application.add_handler(CommandHandler("delmemo", delete_memo_handler))
+        application.add_handler(CommandHandler("searchmemo", search_memo_handler))
 
         # ── 待辦清單 ──
         application.add_handler(CommandHandler("todo", add_todo_handler))
         application.add_handler(CommandHandler("todos", list_todos_handler))
         application.add_handler(CommandHandler("done", done_todo_handler))
         application.add_handler(CommandHandler("deltodo", delete_todo_handler))
+        application.add_handler(CommandHandler("searchtodo", search_todo_handler))
 
-        # ── 一般訊息 ──
+        # ── 快速提醒 ──
+        application.add_handler(CommandHandler("remind", remind_handler))
+        application.add_handler(CommandHandler("reminders", list_reminders_handler))
+        application.add_handler(CommandHandler("delremind", delete_reminder_handler))
+
+        # ── 翻譯 ──
+        application.add_handler(CommandHandler("translate", translate_handler))
+
+        # ── 匯率 ──
+        application.add_handler(CommandHandler("exchange", exchange_handler))
+
+        # ── 圖片訊息 ──
+        application.add_handler(MessageHandler(filters.PHOTO, image_handler))
+
+        # ── 語音訊息 ──
+        application.add_handler(MessageHandler(filters.VOICE, voice_handler))
+
+        # ── 一般文字訊息 ──
         application.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler)
         )

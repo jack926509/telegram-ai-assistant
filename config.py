@@ -91,11 +91,15 @@ def validate_config():
 
 # 功能開關 (可透過環境變數控制)
 FEATURES = {
-    'calendar': _parse_bool(os.getenv('FEATURE_CALENDAR', 'true'), default=True),
-    'expense': _parse_bool(os.getenv('FEATURE_EXPENSE', 'true'), default=True),
-    'search': _parse_bool(os.getenv('FEATURE_SEARCH', 'true'), default=True),
-    'weather': _parse_bool(os.getenv('FEATURE_WEATHER', 'true'), default=True),
-    'stock': _parse_bool(os.getenv('FEATURE_STOCK', 'true'), default=True),
-    'memo': _parse_bool(os.getenv('FEATURE_MEMO', 'true'), default=True),
-    'todo': _parse_bool(os.getenv('FEATURE_TODO', 'true'), default=True),
+    'calendar':  _parse_bool(os.getenv('FEATURE_CALENDAR',  'true'), default=True),
+    'expense':   _parse_bool(os.getenv('FEATURE_EXPENSE',   'true'), default=True),
+    'search':    _parse_bool(os.getenv('FEATURE_SEARCH',    'true'), default=True),
+    'weather':   _parse_bool(os.getenv('FEATURE_WEATHER',   'true'), default=True),
+    'memo':      _parse_bool(os.getenv('FEATURE_MEMO',      'true'), default=True),
+    'todo':      _parse_bool(os.getenv('FEATURE_TODO',      'true'), default=True),
+    'translate': _parse_bool(os.getenv('FEATURE_TRANSLATE', 'true'), default=True),
+    'exchange':  _parse_bool(os.getenv('FEATURE_EXCHANGE',  'true'), default=True),
+    'image':     _parse_bool(os.getenv('FEATURE_IMAGE',     'true'), default=True),
+    'voice':     _parse_bool(os.getenv('FEATURE_VOICE',     'true'), default=True),
+    'remind':    _parse_bool(os.getenv('FEATURE_REMIND',    'true'), default=True),
 }
