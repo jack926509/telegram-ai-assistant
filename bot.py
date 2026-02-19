@@ -232,6 +232,46 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await dispatch_text(update, context, message_text_raw)
 
 
+async def _register_commands(bot):
+    """向 Telegram 註冊 / 選單指令（BotFather setcommands 等效）"""
+    from telegram import BotCommand
+    commands = [
+        # ── 系統 ──
+        BotCommand("start",      "歡迎訊息與功能介紹"),
+        BotCommand("help",       "指令一覽"),
+        BotCommand("newchat",    "清除對話記憶，重新開始"),
+        # ── 快速提醒 ──
+        BotCommand("remind",     "⏰ 設定提醒，例: /remind 30m 喝水"),
+        BotCommand("reminders",  "查看所有待提醒事項"),
+        BotCommand("delremind",  "取消提醒，例: /delremind 3"),
+        # ── 記帳 ──
+        BotCommand("setbudget",  "💰 設定月度預算，例: /setbudget 30000"),
+        # ── 備忘錄 ──
+        BotCommand("memo",       "📝 新增備忘錄，例: /memo 記得買牛奶"),
+        BotCommand("memos",      "查看所有備忘錄"),
+        BotCommand("searchmemo", "搜尋備忘錄，例: /searchmemo 牛奶"),
+        BotCommand("delmemo",    "刪除備忘錄，例: /delmemo 3"),
+        # ── 待辦清單 ──
+        BotCommand("todo",       "✅ 新增待辦，例: /todo 準備週報 due:03-01"),
+        BotCommand("todos",      "查看待辦清單（含截止日與逾期警示）"),
+        BotCommand("done",       "標記完成，例: /done 3"),
+        BotCommand("searchtodo", "搜尋待辦，例: /searchtodo 週報"),
+        BotCommand("deltodo",    "刪除待辦，例: /deltodo 3"),
+        # ── 翻譯 ──
+        BotCommand("translate",  "🌐 翻譯，例: /translate en 你好"),
+        # ── 匯率 ──
+        BotCommand("exchange",   "💱 匯率，例: /exchange 100 USD TWD"),
+        # ── 搜尋 ──
+        BotCommand("search",     "🔍 網頁搜尋，例: /search Python 教學"),
+        BotCommand("summarize",  "摘要網頁，例: /summarize https://..."),
+        # ── 天氣 ──
+        BotCommand("weather",    "🌤 即時天氣，例: /weather 台北"),
+        BotCommand("forecast",   "未來 5 天預報，例: /forecast 東京"),
+    ]
+    await bot.set_my_commands(commands)
+    logger.info("Telegram 指令清單已註冊（%d 個指令）", len(commands))
+
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """處理錯誤"""
     logger.error("Update %s caused error %s", update, context.error, exc_info=context.error)
@@ -248,7 +288,15 @@ def main():
         config.validate_config()
         init_db()
 
-        application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+        async def _post_init(app):
+            await _register_commands(app.bot)
+
+        application = (
+            Application.builder()
+            .token(config.TELEGRAM_BOT_TOKEN)
+            .post_init(_post_init)
+            .build()
+        )
 
         # ── 白名單守衛（group=-1 最先執行）──
         application.add_handler(TypeHandler(Update, whitelist_guard), group=-1)
