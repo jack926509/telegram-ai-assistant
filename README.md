@@ -26,10 +26,6 @@
    - 即時天氣資訊
    - 多日天氣預報
 
-5. **股價查詢** 📈
-   - 即時股價
-   - 台股、美股支援
-
 ## 技術架構
 
 - **Bot Framework**: python-telegram-bot
@@ -110,7 +106,6 @@ python bot.py
 - `/expense` - 記帳功能
 - `/search` - 網頁搜尋
 - `/weather` - 天氣查詢
-- `/stock` - 股價查詢
 
 ### 使用範例
 
@@ -133,12 +128,6 @@ python bot.py
 ```
 天氣: 台北
 天氣: 台北 未來三天
-```
-
-**股票:**
-```
-股票: 2330
-股票: AAPL
 ```
 
 ## Docker 部署
@@ -214,8 +203,7 @@ telegram-ai-assistant/
 │   ├── calendar.py       # 行事曆功能
 │   ├── expense.py        # 記帳功能
 │   ├── search.py         # 搜尋功能
-│   ├── weather.py        # 天氣功能
-│   └── stock.py          # 股票功能
+│   └── weather.py        # 天氣功能
 ├── database/             # 資料庫模組
 │   ├── models.py         # 資料模型
 │   └── operations.py     # 資料庫操作

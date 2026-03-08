@@ -112,6 +112,13 @@ async def handle_create_event(update, context, user_id, intent_data):
             end_time=end_time,
             reminder_time=reminder_time
         )
+        
+        # 同步至 Google Calendar
+        from utils.gcal_helper import sync_event_to_gcal
+        gcal_link = await asyncio.to_thread(
+            sync_event_to_gcal,
+            event.id, event.title, event.start_time, event.end_time, event.description
+        )
 
         response = (
             f"✅ 行程已建立!\n\n"
@@ -123,6 +130,9 @@ async def handle_create_event(update, context, user_id, intent_data):
             response += f"📝 {event.description}\n"
 
         response += f"⏰ 將在 {reminder_minutes} 分鐘前提醒你"
+        
+        if gcal_link:
+            response += f"\n📅 已同步至 Google 日曆"
 
         # 若有衝突，附上警告訊息
         if conflicts:
@@ -213,6 +223,10 @@ async def handle_delete_event(update, context, user_id, intent_data):
             return
 
         await asyncio.to_thread(db_ops.delete_event, matching_event.id, user_id)
+        
+        from utils.gcal_helper import delete_event_from_gcal
+        await asyncio.to_thread(delete_event_from_gcal, matching_event.id)
+        
         await update.message.reply_text(f"✅ 已刪除行程: {matching_event.title}")
 
     except Exception:
@@ -285,11 +299,19 @@ async def handle_update_event(update, context, user_id, intent_data):
         )
 
         if updated:
+            from utils.gcal_helper import sync_event_to_gcal
+            gcal_link = await asyncio.to_thread(
+                sync_event_to_gcal,
+                updated.id, updated.title, updated.start_time, updated.end_time, updated.description
+            )
+            
             response = (
                 f"✅ 行程已更新!\n\n"
                 f"📅 {updated.title}\n"
                 f"🕐 {updated.start_time.strftime('%Y-%m-%d %H:%M')}\n"
             )
+            if gcal_link:
+                response += f"📅 已同步至 Google 日曆\n"
             await update.message.reply_text(response)
         else:
             await update.message.reply_text("修改失敗，請稍後再試。")

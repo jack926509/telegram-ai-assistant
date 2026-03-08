@@ -197,6 +197,49 @@ class OpenAIHelper:
             return "分析圖片時發生錯誤，請稍後再試。"
 
     @staticmethod
+    def parse_invoice_image(image_b64: str, prompt: str = None):
+        """分析圖片，若是發票收據則解析為記帳 JSON，否則純描述"""
+        if not prompt:
+            prompt = """請分析這張圖片。如果它是發票、收據或交易明細，請整理出『交易日期、總金額、消費項目』，並判斷合適的分類。
+回傳純 JSON 格式 (不要加 markdown):
+{
+    "is_invoice": true,
+    "intent": "record",
+    "transaction_type": "expense",
+    "amount": 總金額數字,
+    "category": "分類(食物/交通/娛樂/購物/醫療/其他)",
+    "description": "消費項目簡述"
+}
+如果它只是一般的圖片，請回傳:
+{
+    "is_invoice": false,
+    "description": "對圖片的詳細描述"
+}
+"""
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_b64}",
+                                "detail": "high"
+                            }
+                        }
+                    ]
+                }],
+                temperature=0.1,
+                max_tokens=800
+            )
+            return _extract_json(response.choices[0].message.content)
+        except Exception as e:
+            return {"is_invoice": False, "description": "圖片分析失敗"}
+
+    @staticmethod
     def transcribe_voice(audio_bytes: bytes) -> str:
         """使用 Whisper 將語音轉成文字"""
         import io

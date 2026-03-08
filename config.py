@@ -70,6 +70,10 @@ MORNING_BRIEFING_MINUTE = int(os.getenv('MORNING_BRIEFING_MINUTE', 0))
 # 預算預警門檻（0~1 之間的比例，預設 80%）
 BUDGET_WARNING_THRESHOLD = float(os.getenv('BUDGET_WARNING_THRESHOLD', 0.8))
 
+# Google Calendar 同步設定
+GOOGLE_CALENDAR_ID = os.getenv('GOOGLE_CALENDAR_ID')  # 日曆 ID，通常為 email
+GOOGLE_CREDENTIALS_JSON = os.getenv('GOOGLE_CREDENTIALS_JSON')  # Service Account JSON 憑證內容或路徑
+
 
 # 驗證必要的環境變數
 def validate_config():

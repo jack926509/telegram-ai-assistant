@@ -12,7 +12,6 @@
 | 記帳 (expense) | 記錄收支、查詢報表、月度預算 | ✅ 可用 |
 | 搜尋 (search) | DuckDuckGo 搜尋、網頁摘要 | ⚠️ URL 解析問題 |
 | 天氣 (weather) | 即時天氣、未來預報 | ✅ 可用 |
-| 股票 (stock) | 股價查詢、走勢圖、觀察清單 | ✅ 可用 |
 | AI 對話 | 多輪對話、意圖路由 | ⚠️ 記憶體問題 |
 
 ---
@@ -87,7 +86,7 @@ def _extract_json(text: str) -> dict:
 
 #### 4. 錯誤訊息洩漏內部資訊
 
-**位置:** `handlers/search.py:102`, `handlers/weather.py:27,216`, `handlers/stock.py:38`
+**位置:** `handlers/search.py:102`, `handlers/weather.py:27,216`
 
 **問題:**
 ```python
@@ -248,12 +247,6 @@ datetime.now(tz=TZ)
 **建議:** 加入簡單的每分鐘/每日訊息數量限制，超過時回覆提示並暫停回應。
 
 ---
-
-#### 14. 股價走勢圖僅為 ASCII 文字圖
-
-**位置:** `handlers/stock.py:208-228`
-
-目前走勢圖是文字方塊圖，可讀性低。建議使用 `matplotlib` + `mplfinance` 生成 K 線圖圖片，再透過 `send_photo()` 傳送。
 
 ---
 

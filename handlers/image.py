@@ -30,8 +30,6 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("圖片太大（超過 5MB），請傳送較小的圖片。")
         return
 
-    prompt = update.message.caption or "請描述這張圖片的內容，並提取其中所有可見的文字。"
-
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
@@ -39,8 +37,18 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image_bytes = await file.download_as_bytearray()
         image_b64 = base64.b64encode(bytes(image_bytes)).decode('utf-8')
 
-        result = await asyncio.to_thread(ai_helper.analyze_image, image_b64, prompt)
-        await update.message.reply_text(f"🔍 圖片分析\n\n{result}")
+        if update.message.caption:
+            prompt = update.message.caption
+            result = await asyncio.to_thread(ai_helper.analyze_image, image_b64, prompt)
+            await update.message.reply_text(f"🔍 圖片分析\n\n{result}")
+        else:
+            data = await asyncio.to_thread(ai_helper.parse_invoice_image, image_b64)
+            if data and data.get("is_invoice"):
+                from handlers.expense import handle_record_expense
+                await handle_record_expense(update, context, user_id, data)
+            else:
+                desc = data.get("description", "無法解析圖片") if data else "無法解析圖片"
+                await update.message.reply_text(f"🔍 圖片分析\n\n{desc}")
 
     except Exception:
         logger.exception("image_handler failed: user_id=%s", user_id)

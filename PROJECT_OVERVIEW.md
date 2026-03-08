@@ -29,8 +29,7 @@ telegram-ai-assistant/
 │   ├── calendar.py           # 行事曆功能
 │   ├── expense.py            # 記帳功能
 │   ├── search.py             # 網頁搜尋
-│   ├── weather.py            # 天氣查詢
-│   └── stock.py              # 股價查詢
+│   └── weather.py            # 天氣查詢
 │
 ├── utils/                     # 工具函數
 │   ├── __init__.py
@@ -96,18 +95,6 @@ telegram-ai-assistant/
 - 繁體中文天氣描述
 - 詳細氣象資訊
 
-### 5. 股價查詢 (`handlers/stock.py`)
-- ✅ 台股/美股查詢
-- ✅ 即時股價與漲跌
-- ✅ 股票資訊 (市值/本益比/殖利率)
-- ✅ 簡易走勢圖
-- ✅ 熱門股票列表
-
-**技術特點:**
-- yfinance 取得即時數據
-- 自動識別台股代碼
-- 支援指數查詢
-
 ---
 
 ## 🔧 技術架構
@@ -119,7 +106,6 @@ telegram-ai-assistant/
 - **資料庫**: SQLite + SQLAlchemy
 - **排程**: APScheduler
 - **網頁解析**: BeautifulSoup4
-- **股價數據**: yfinance
 
 ### 資料庫設計
 
@@ -172,7 +158,6 @@ telegram-ai-assistant/
 ├─ 記帳   → OpenAI 解析 → 資料庫操作
 ├─ 搜尋   → DuckDuckGo → OpenAI 總結
 ├─ 天氣   → Weather API → 格式化輸出
-├─ 股票   → yfinance → 格式化輸出
 └─ 一般   → OpenAI 對話 → 直接回應
 ```
 
@@ -246,7 +231,6 @@ telegram-ai-assistant/
 ### API 呼叫
 - OpenAI: 每次對話約 500-2000 tokens
 - 天氣: 每次查詢 1 API call
-- 股票: 免費無限制
 
 ### 資料庫
 - SQLite 輕量級
@@ -288,7 +272,6 @@ python bot.py
 創建行程: 明天下午3點開會
 記帳: 午餐 150 元
 /weather 台北
-/stock 2330
 ```
 
 ### 自動測試 (開發中)
